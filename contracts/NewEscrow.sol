@@ -745,7 +745,7 @@ contract NewEscrow is ERC165 {
         );
         require(
             block.timestamp >
-                bid[_order.tokenId][_editionNumber].timeStamp.add(10), //replace with 86400 in production //change this 10 for unit testing
+                bid[_order.tokenId][_editionNumber].timeStamp.add(10), //replace 180 with 86400 in production //change this 10 for unit testing
             "Please wait 24 hours before claiming back"
         );
         require(
