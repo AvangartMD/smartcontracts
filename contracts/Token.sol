@@ -138,7 +138,8 @@ interface EscrowInt {
         uint256 _pricePerNFT,
         uint256 _saleType,
         uint256 _timeline,
-        uint256 _adminPlatformFee
+        uint256 _adminPlatformFee,
+        address _tokenAddress
     ) external returns (bool);
 }
 
@@ -602,6 +603,7 @@ contract Token is ERC1155 {
 
     uint256 public maxEditionsPerNFT;
     uint256 public tokenId;
+    address[] public paymentTokens;
 
     struct owner {
         address creator;
@@ -618,11 +620,14 @@ contract Token is ERC1155 {
     mapping(address => bool) public creator;
     mapping(uint256 => owner) private ownerOf;
     mapping(uint256 => string) public tokenURI;
+    mapping(address => bool) public paymentEnabled;
 
     constructor(address _admin, address _escrowAddress)
         ERC1155(_admin, _escrowAddress)
     {
         creator[_admin] = true;
+        paymentEnabled[address(0)] = true;
+        paymentTokens.push(address(0));
     }
 
     function approveCreators(address[] memory _creators) external onlyAdmin {
@@ -635,6 +640,22 @@ contract Token is ERC1155 {
         for (uint256 i = 0; i < _creators.length; i++) {
             creator[_creators[i]] = false;
         }
+    }
+
+    function addPaymentTokens(address tokenAddress) external onlyAdmin {
+        require(tokenAddress != address(0), "Zero token address");
+        for (uint256 i = 0; i < paymentTokens.length; i++) {
+            if (paymentTokens[i] == tokenAddress) {
+                paymentEnabled[tokenAddress] = true;
+            } else {
+                paymentTokens.push(tokenAddress);
+                paymentEnabled[tokenAddress] = true;
+            }
+        }
+    }
+
+    function disablePaymentTokens(address tokenAddress) external onlyAdmin {
+        paymentEnabled[tokenAddress] = false;
     }
 
     function TokenURI(uint256 _tokenId) external view returns (string memory) {
@@ -674,13 +695,18 @@ contract Token is ERC1155 {
         Type _saleType,
         uint256 _timeline,
         uint256 _pricePerNFT,
-        uint256 _adminPlatformFee
+        uint256 _adminPlatformFee,
+        address tokenAddress
     ) external returns (bool) {
         require(_editions > 0, "Zero editions");
         require(_pricePerNFT > 0, "Zero price");
         require(bytes(_tokenURI).length > 0, "Invalid token URI");
         require(_adminPlatformFee < 51, "Admin fee too high");
         require(creator[msg.sender], "Only approved users can mint");
+        require(
+            paymentEnabled[tokenAddress],
+            "Selected token payment disabled"
+        );
 
         require(
             _saleType == Type.Instant || _saleType == Type.Auction,
@@ -705,27 +731,33 @@ contract Token is ERC1155 {
             _creatorPercent.add(_coCreatorPercent) == 100,
             "Wrong percentages"
         );
-        uint256 platFee;
-        if (msg.sender == admin) platFee = _adminPlatformFee;
+        if (msg.sender == admin) {
+            _adminPlatformFee = _adminPlatformFee;
+        } else {
+            _adminPlatformFee = 0;
+        }
         tokenId = tokenId.add(1);
 
         _mint(escrowAddress, tokenId, _editions, "");
-        tokenURI[tokenId] = _tokenURI;
-        ownerOf[tokenId] = owner(
-            _creator,
-            _creatorPercent,
-            _coCreator,
-            _coCreatorPercent
-        );
-        EscrowInterface.placeOrder(
-            _creator,
-            tokenId,
-            _editions,
-            _pricePerNFT,
-            uint256(_saleType),
-            _timeline,
-            platFee
-        );
+        {
+            tokenURI[tokenId] = _tokenURI;
+            ownerOf[tokenId] = owner(
+                _creator,
+                _creatorPercent,
+                _coCreator,
+                _coCreatorPercent
+            );
+            EscrowInterface.placeOrder(
+                _creator,
+                tokenId,
+                _editions,
+                _pricePerNFT,
+                uint256(_saleType),
+                _timeline,
+                _adminPlatformFee,
+                tokenAddress
+            );
+        }
         return true;
     }
 

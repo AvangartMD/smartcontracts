@@ -173,6 +173,7 @@ contract NewEscrow is ERC165 {
         uint256 pricePerNFT;
         uint256 saleType;
         uint256 timeline;
+        address paymentToken;
     }
 
     struct Bid {
@@ -285,13 +286,13 @@ contract NewEscrow is ERC165 {
         uint256 _pricePerNFT,
         uint256 _saleType,
         uint256 _timeline,
-        uint256 _adminPlatformFee
+        uint256 _adminPlatformFee,
+        address _paymentToken
     ) external returns (bool) {
-        _timeline;
         if (_timeline == 0) {
             _timeline = block.timestamp;
         } else {
-            _timeline = block.timestamp.add(_timeline.mul(1)); //Change 30 to 1 for unit testing and 3600 for production
+            _timeline = block.timestamp.add(_timeline.mul(30)); //Change 30 to 1 for unit testing and 3600 for production
         }
         require(msg.sender == tokenAddress, "Not token address");
         tokenEditions[_tokenId] = _editions;
@@ -303,7 +304,8 @@ contract NewEscrow is ERC165 {
             _editions,
             _pricePerNFT,
             _saleType,
-            _timeline
+            _timeline,
+            _paymentToken
         );
 
         emit OrderPlaced(
@@ -461,7 +463,8 @@ contract NewEscrow is ERC165 {
         );
         require(
             msg.value > _order.pricePerNFT &&
-                msg.value > bid[_order.tokenId][_editionNumber].bidValue,
+                msg.value >=
+                (bid[_order.tokenId][_editionNumber].bidValue.mul(11).div(10)),
             "Wrong Price"
         );
         if (_order.saleType == 1) {
@@ -632,7 +635,8 @@ contract NewEscrow is ERC165 {
             1,
             _pricePerNFT,
             _saleType,
-            0
+            0,
+            address(0)
         );
 
         emit OrderPlaced(
@@ -745,7 +749,7 @@ contract NewEscrow is ERC165 {
         );
         require(
             block.timestamp >
-                bid[_order.tokenId][_editionNumber].timeStamp.add(10), //replace 180 with 86400 in production //change this 10 for unit testing
+                bid[_order.tokenId][_editionNumber].timeStamp.add(180), //replace 180 with 86400 in production //change this 10 for unit testing
             "Please wait 24 hours before claiming back"
         );
         require(
